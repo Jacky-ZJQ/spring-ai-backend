@@ -4,7 +4,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.jacky</groupId>
-    <artifactId>spring-ai</artifactId>
+    <artifactId>spring-ai-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>spring-ai</name>
     <description>spring-ai-demo</description>
