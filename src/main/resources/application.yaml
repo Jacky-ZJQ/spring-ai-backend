@@ -1,0 +1,54 @@
+server:
+  port: 8080
+# 日志
+logging:
+  level:
+    com.jacky.ai: debug # 本项目的日志级别
+#    org.springframework.ai: debug # AI对话的日志级别
+#    org.springframework.ai.chat.metadata.ChatResponseMetadata: WARN
+
+
+spring:
+  application:
+    name: spring-ai-demo
+
+  # 文件上传大小配置
+  servlet:
+    multipart:
+      max-file-size: 104857600
+      max-request-size: 104857600
+
+  # mysql数据库
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/itheima?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&useServerPrepStmts=false
+    username: root
+    password: 1234
+
+  # 大模型配置
+  ai:
+    # 本地ollama部署
+    ollama:
+      base-url: http://localhost:11434 # ollama服务地址， 这就是默认值
+      # 配置本地部署的文本聊天模型
+      chat:
+        model: deepseek-r1:1.5b # 模型名称
+        options:
+          temperature: 0.8 # 模型温度，影响模型生成结果的随机性，越小越稳定
+
+    # 开发大模型API
+    openai:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      # 此处为了防止api-key泄露，我们使用了${OPENAI_API_KEY}来读取环境变量。
+      api-key: ${OPENAI_API_KEY}
+      # 聊天模型（chat）
+      chat:
+        options:
+          model: qwen-max-latest # 可选择的模型列表 https://help.aliyun.com/zh/model-studio/getting-started/models
+          temperature: 0.8 # 模型温度，值越大，输出结果越随机
+      # 向量模型（RAG）
+      embedding:
+        options:
+          model: text-embedding-v3
+          dimensions: 1024
+
