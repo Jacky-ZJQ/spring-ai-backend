@@ -217,42 +217,6 @@ curl "http://localhost:8080/ai/history/pdf/pdf_1700000000000"
 - 将向量库替换为可扩展的持久化方案（如 PGVector / Milvus / Elasticsearch）
 - 增加全局异常处理与接口限流
 
-## Docker 生产部署（2核4G 可用）
-
-> 建议：2核4G 仅部署 `mysql + backend + portal`，不要在同机再跑 Ollama 推理。  
-> 如需文本聊天，请把 `OLLAMA_BASE_URL` 指到外部 Ollama 服务。
-
-1. 复制环境变量模板并修改密码/API Key
-
-```bash
-cp .env.prod.example .env.prod
-```
-
-2. 确认前端仓库路径（默认 `../spring-ai-protal`）
-
-```bash
-echo $PORTAL_BUILD_CONTEXT
-```
-
-3. 启动服务
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
-```
-
-4. 查看状态
-
-```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f backend
-```
-
-默认访问：
-
-- 前端：`http://服务器IP/`
-- 后端：由前端通过 `/api/*` 反向代理访问
-- MySQL：`3306`（可在 `.env.prod` 中修改）
-
 ## 常见问题
 
 ### 1. PDF 回答“没有相关上下文”
