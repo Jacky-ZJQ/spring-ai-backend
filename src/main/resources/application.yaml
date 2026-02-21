@@ -52,3 +52,112 @@ spring:
           model: text-embedding-v3
           dimensions: 1024
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  skills:
+    enabled: ${SKILLS_ENABLED:true}
+    history-type: ${SKILLS_HISTORY_TYPE:skill}
+    default-conversation-prefix: ${SKILLS_DEFAULT_PREFIX:skill}
+    definitions:
+      - code: general-assistant
+        name: 通用助手
+        description: 基于本地模型的通用问答技能
+        # 可按环境覆盖为 serviceOpenAiChatClient，避免依赖本地 Ollama
+        client-bean: ${SKILL_GENERAL_CLIENT_BEAN:ollamaChatClient}
+        mode: STREAM
+        conversation-prefix: general
+        welcome-message: 你好，我是通用助手，欢迎提问。
+        enabled: true
+      - code: course-advisor
+        name: 课程顾问
+        description: 课程咨询与预约办理技能
+        client-bean: serviceOpenAiChatClient
+        mode: SYNC
+        conversation-prefix: course
+        welcome-message: 你好，我是课程顾问助手。
+        enabled: true
+
+  mcp:
+    enabled: ${MCP_ENABLED:true}
+    server-name: ${MCP_SERVER_NAME:spring-ai-mcp-gateway}
+    server-version: ${MCP_SERVER_VERSION:1.0.0}
+    session-ttl-seconds: ${MCP_SESSION_TTL_SECONDS:1800}
+    auto-register-unconfigured-tools: ${MCP_AUTO_REGISTER_UNCONFIGURED_TOOLS:true}
+    protocol-versions:
+      - "2025-11-05"
+      - "2025-06-18"
+      - "2025-03-26"
+      - "2024-11-05"
+    tools:
+      - name: query_course
+        title: 课程查询
+        description: 根据课程类型和学历条件查询课程列表
+        input-schema:
+          type: object
+          properties:
+            type:
+              type: string
+              description: 课程类型
+            edu:
+              type: integer
+              description: 学历要求，取值 0-4
+        read-only-hint: true
+        idempotent-hint: true
+        enabled: true
+
+      - name: query_all_schools
+        title: 校区查询
+        description: 查询全部校区
+        input-schema:
+          type: object
+          properties: { }
+        read-only-hint: true
+        idempotent-hint: true
+        enabled: true
+
+      - name: generate_course_reservation
+        title: 生成预约单
+        description: 生成课程预约单并返回预约编号
+        input-schema:
+          type: object
+          required: [ courseName, studentName, contactInfo, school ]
+          properties:
+            courseName:
+              type: string
+            studentName:
+              type: string
+            contactInfo:
+              type: string
+            school:
+              type: string
+            remark:
+              type: string
+        read-only-hint: false
+        idempotent-hint: false
+        enabled: true
+
+      - name: skill_chat_once
+        title: 技能问答
+        description: 通过技能中心发起一次同步问答
+        input-schema:
+          type: object
+          required: [ skillCode, prompt ]
+          properties:
+            skillCode:
+              type: string
+            prompt:
+              type: string
+            chatId:
+              type: string
+        read-only-hint: true
+        idempotent-hint: false
+        enabled: true

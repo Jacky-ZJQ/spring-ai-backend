@@ -17,6 +17,6 @@ public class MvcConfiguration implements WebMvcConfigurer {
                 .allowedOrigins("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .exposedHeaders("Content-Disposition");
+                .exposedHeaders("Content-Disposition", "MCP-Session-Id", "MCP-Protocol-Version", "X-Chat-Id");
     }
 }

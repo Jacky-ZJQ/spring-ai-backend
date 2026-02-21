@@ -26,7 +26,7 @@ public class CourseTools {
     private final ICourseReservationService courseReservationService;
     private final static Logger logger = LoggerFactory.getLogger(CourseTools.class);
 
-    @Tool(description = "根据条件查询课程")
+    @Tool(name = "query_course", description = "根据条件查询课程")
     public List<Course> queryCourse(@ToolParam(required = false, description = "课程查询条件") CourseQuery query) {
         logger.info("[LLM-Tool]CourseTools.queryCourse根据条件查询课程: {}", query);
         QueryChainWrapper<Course> wrapper = courseService.query();
@@ -41,13 +41,13 @@ public class CourseTools {
         return wrapper.list();
     }
 
-    @Tool(description = "查询所有校区")
+    @Tool(name = "query_all_schools", description = "查询所有校区")
     public List<School> queryAllSchools() {
         logger.info("[LLM-Tool]CourseTools.queryAllSchools查询所有校区");
         return schoolService.list();
     }
 
-    @Tool(description = "生成课程预约单,并返回生成的预约单号")
+    @Tool(name = "generate_course_reservation", description = "生成课程预约单,并返回生成的预约单号")
     public String generateCourseReservation(String courseName, String studentName,
                                             String contactInfo, String school, String remark) {
 
