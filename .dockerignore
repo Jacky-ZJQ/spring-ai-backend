@@ -1,0 +1,10 @@
+.git
+.gitignore
+.idea
+.vscode
+target
+storage
+chat-pdf.properties
+chat-pdf.json
+README.md
+LICENSE

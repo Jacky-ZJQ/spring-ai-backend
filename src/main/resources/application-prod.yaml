@@ -1,0 +1,50 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    com.jacky.ai: ${APP_LOG_LEVEL:info}
+
+spring:
+  application:
+    name: spring-ai-demo
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:104857600}
+      max-request-size: ${MAX_REQUEST_SIZE:104857600}
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/itheima?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&useServerPrepStmts=false}
+    username: ${SPRING_DATASOURCE_USERNAME:ai_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me}
+
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://host.docker.internal:11434}
+      chat:
+        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:1.5b}
+        options:
+          temperature: ${OLLAMA_TEMPERATURE:0.8}
+    openai:
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:qwen-max-latest}
+          temperature: ${OPENAI_CHAT_TEMPERATURE:0.8}
+      embedding:
+        options:
+          model: ${OPENAI_EMBEDDING_MODEL:text-embedding-v3}
+          dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1024}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

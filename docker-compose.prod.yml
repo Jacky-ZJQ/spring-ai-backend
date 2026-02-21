@@ -1,0 +1,97 @@
+name: spring-ai-stack
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: spring-ai-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    mem_limit: 1200m
+    cpus: "0.90"
+    networks:
+      - spring-ai-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spring-ai-backend:prod
+    container_name: spring-ai-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-info}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&useServerPrepStmts=false
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SPRING_AI_OPENAI_BASE_URL: ${SPRING_AI_OPENAI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-qwen-max-latest}
+      OPENAI_CHAT_TEMPERATURE: ${OPENAI_CHAT_TEMPERATURE:-0.8}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-v3}
+      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1024}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-deepseek-r1:1.5b}
+      OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.8}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      MAX_REQUEST_SIZE: ${MAX_REQUEST_SIZE:-104857600}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - backend_data:/data
+    expose:
+      - "8080"
+    mem_limit: 1536m
+    cpus: "0.70"
+    networks:
+      - spring-ai-net
+
+  portal:
+    build:
+      context: ${PORTAL_BUILD_CONTEXT:-../spring-ai-protal}
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    image: spring-ai-portal:prod
+    container_name: spring-ai-portal
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PORTAL_PORT:-80}:80"
+    mem_limit: 384m
+    cpus: "0.30"
+    networks:
+      - spring-ai-net
+
+volumes:
+  mysql_data:
+  backend_data:
+
+networks:
+  spring-ai-net:
+    driver: bridge
