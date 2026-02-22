@@ -64,8 +64,8 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-deepseek-r1:1.5b}
       OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.8}
-      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
-      MAX_REQUEST_SIZE: ${MAX_REQUEST_SIZE:-104857600}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      MAX_REQUEST_SIZE: ${MAX_REQUEST_SIZE:-10485760}
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS}
     extra_hosts:
       - "host.docker.internal:host-gateway"

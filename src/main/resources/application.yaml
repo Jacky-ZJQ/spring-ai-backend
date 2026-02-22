@@ -15,8 +15,8 @@ spring:
   # 文件上传大小配置
   servlet:
     multipart:
-      max-file-size: 104857600
-      max-request-size: 104857600
+      max-file-size: 10485760
+      max-request-size: 10485760
 
   # mysql数据库
   datasource:
