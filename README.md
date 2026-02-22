@@ -253,6 +253,55 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - 后端：由前端通过 `/api/*` 反向代理访问
 - MySQL：`3306`（可在 `.env.prod` 中修改）
 
+## 故障应急 SOP（生产可直接执行）
+
+> 适用于已部署在单机 Docker Compose 的线上环境。
+> 默认目录：`/opt/spring-ai`。
+
+### 1. 先做健康检查
+
+```bash
+cd /opt/spring-ai/spring-ai-backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
+curl http://127.0.0.1/api/actuator/health
+```
+
+### 2. 标准发布（pull 模式）
+
+```bash
+/opt/spring-ai/deploy.sh pull all
+```
+
+### 3. 发布后异常，快速回滚
+
+```bash
+cd /opt/spring-ai/spring-ai-backend
+git log --oneline -n 5
+cd /opt/spring-ai/spring-ai-portal
+git log --oneline -n 5
+
+# 前后端同版本回滚
+/opt/spring-ai/rollback.sh <commit_id>
+
+# 前后端不同版本回滚
+/opt/spring-ai/rollback.sh <backend_commit_id> <portal_commit_id>
+```
+
+### 4. GitHub 网络异常时临时发布（不拉代码）
+
+```bash
+/opt/spring-ai/deploy.sh nopull all
+```
+
+### 5. 最后确认服务恢复
+
+```bash
+cd /opt/spring-ai/spring-ai-backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=100 backend
+curl http://127.0.0.1/api/actuator/health
+```
+
 ## 常见问题
 
 ### 1. PDF 回答“没有相关上下文”
