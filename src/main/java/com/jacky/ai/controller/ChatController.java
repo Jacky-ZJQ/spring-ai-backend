@@ -3,6 +3,7 @@ package com.jacky.ai.controller;
 
 import com.jacky.ai.repository.ChatHistoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.model.Media;
 import org.springframework.util.MimeType;
@@ -32,6 +33,13 @@ public class ChatController {
     private final ChatClient openAiChatClient;
 
     private final ChatHistoryRepository chatHistoryRepository;
+
+    /**
+     * 可选值：ollama / openai
+     * 默认使用 openai，避免线上没有 Ollama 时 /ai/chat 不可用
+     */
+    @Value("${spring.ai.chat.text-provider:openai}")
+    private String textProvider;
 
     @RequestMapping(value = "/chat", produces = "text/html;charset=UTF-8")
     public Flux<String> chat(@RequestParam("prompt") String prompt,
@@ -90,7 +98,8 @@ public class ChatController {
      * @return 响应流
      */
     private Flux<String> textChat(String prompt, String chatId) {
-        return ollamaChatClient.prompt()
+        ChatClient textChatClient = "ollama".equalsIgnoreCase(textProvider) ? ollamaChatClient : openAiChatClient;
+        return textChatClient.prompt()
                 .user(prompt)
                 .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)) // 传递chatId给Advisor的方式是通过AdvisorContext，也就是以key-value形式存入上下文
                 .stream()

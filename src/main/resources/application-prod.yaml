@@ -21,6 +21,8 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:change_me}
 
   ai:
+    chat:
+      text-provider: ${SPRING_AI_CHAT_TEXT_PROVIDER:openai}
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://host.docker.internal:11434}
       chat:
