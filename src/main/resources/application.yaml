@@ -52,3 +52,17 @@ spring:
           model: text-embedding-v3
           dimensions: 1024
 
+    # AI 接口配额（内存计数，单机模式）
+    quota:
+      # 是否启用限流
+      enabled: true
+      # 时间窗口内最大请求次数（默认：1小时最多15次）
+      max-requests-per-window: 15
+      # 时间窗口，单位秒
+      window-seconds: 3600
+      # 优先识别用户的请求头；为空时按 IP 限流
+      user-header: X-User-Id
+      # 需要限流的接口路径（逗号分隔）
+      path-patterns: /ai/chat,/ai/game,/ai/service,/ai/pdf/chat
+      # 超限提示文案
+      error-message: 模型调用次数已达上限，请稍后再试。

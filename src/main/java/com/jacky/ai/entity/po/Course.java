@@ -23,17 +23,17 @@ public class Course implements Serializable {
     private Integer id;
 
     /**
-     * 学科名称
+     * 课程名称
      */
     private String name;
 
     /**
-     * 学历背景要求：0-无，1-初中，2-高中、3-大专、4-本科以上
+     * 难度/适合等级：0-无要求，1-初级，2-中级，3-高级，4-大师
      */
     private Integer edu;
 
     /**
-     * 类型: 编程、非编程
+     * 课程分类：咖啡技艺、门店管理、品鉴认证、文化沙龙
      */
     private String type;
 

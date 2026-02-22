@@ -1,9 +1,11 @@
 package com.jacky.ai.entity.po;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -25,7 +27,7 @@ public class CourseReservation implements Serializable {
     private String course;
 
     /**
-     * 学生姓名
+     * 学员姓名
      */
     private String studentName;
 
@@ -35,7 +37,7 @@ public class CourseReservation implements Serializable {
     private String contactInfo;
 
     /**
-     * 预约校区
+     * 预约门店
      */
     private String school;
 
@@ -44,5 +46,10 @@ public class CourseReservation implements Serializable {
      */
     private String remark;
 
+    /**
+     * 预约创建时间
+     */
+    @TableField("created_at")
+    private LocalDateTime createdAt;
 
 }

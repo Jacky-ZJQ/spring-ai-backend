@@ -23,12 +23,12 @@ public class School implements Serializable {
     private Integer id;
 
     /**
-     * 校区名称
+     * 门店名称
      */
     private String name;
 
     /**
-     * 校区所在城市
+     * 门店所在城市
      */
     private String city;
 

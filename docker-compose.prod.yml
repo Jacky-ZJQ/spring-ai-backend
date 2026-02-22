@@ -45,6 +45,13 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8080}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-info}
       SPRING_AI_CHAT_TEXT_PROVIDER: ${SPRING_AI_CHAT_TEXT_PROVIDER:-openai}
+      # ---- AI 调用配额 ----
+      SPRING_AI_QUOTA_ENABLED: ${SPRING_AI_QUOTA_ENABLED:-true}
+      SPRING_AI_QUOTA_MAX_REQUESTS_PER_WINDOW: ${SPRING_AI_QUOTA_MAX_REQUESTS_PER_WINDOW:-15}
+      SPRING_AI_QUOTA_WINDOW_SECONDS: ${SPRING_AI_QUOTA_WINDOW_SECONDS:-3600}
+      SPRING_AI_QUOTA_USER_HEADER: ${SPRING_AI_QUOTA_USER_HEADER:-X-User-Id}
+      SPRING_AI_QUOTA_PATH_PATTERNS: ${SPRING_AI_QUOTA_PATH_PATTERNS:-/ai/chat,/ai/game,/ai/service,/ai/pdf/chat}
+      SPRING_AI_QUOTA_ERROR_MESSAGE: ${SPRING_AI_QUOTA_ERROR_MESSAGE:-模型调用次数已达上限，请稍后再试。}
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&useServerPrepStmts=false
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}

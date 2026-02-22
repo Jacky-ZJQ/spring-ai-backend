@@ -21,6 +21,20 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:change_me}
 
   ai:
+    # AI 接口配额（通过环境变量注入，便于生产环境动态调整）
+    quota:
+      # 是否启用限流
+      enabled: ${SPRING_AI_QUOTA_ENABLED:true}
+      # 时间窗口内最大请求次数（默认：1小时最多15次）
+      max-requests-per-window: ${SPRING_AI_QUOTA_MAX_REQUESTS_PER_WINDOW:15}
+      # 时间窗口，单位秒
+      window-seconds: ${SPRING_AI_QUOTA_WINDOW_SECONDS:3600}
+      # 优先从该请求头读取用户标识，没有则回退到 IP
+      user-header: ${SPRING_AI_QUOTA_USER_HEADER:X-User-Id}
+      # 需要限流的接口路径（逗号分隔）
+      path-patterns: ${SPRING_AI_QUOTA_PATH_PATTERNS:/ai/chat,/ai/game,/ai/service,/ai/pdf/chat}
+      # 超限提示文案
+      error-message: ${SPRING_AI_QUOTA_ERROR_MESSAGE:模型调用次数已达上限，请稍后再试。}
     chat:
       text-provider: ${SPRING_AI_CHAT_TEXT_PROVIDER:openai}
     ollama:
