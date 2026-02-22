@@ -1,20 +1,37 @@
 package com.jacky.ai.controller;
 
 
+import com.jacky.ai.entity.ChatImageMeta;
+import com.jacky.ai.repository.ChatImageRepository;
 import com.jacky.ai.repository.ChatHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.model.Media;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Flux;
+
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+
+import static java.net.URLEncoder.encode;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 
 /**
@@ -33,6 +50,10 @@ public class ChatController {
     private final ChatClient openAiChatClient;
 
     private final ChatHistoryRepository chatHistoryRepository;
+
+    private final ChatImageRepository chatImageRepository;
+
+    private final ChatMemory chatMemory;
 
     /**
      * 可选值：ollama / openai
@@ -68,6 +89,10 @@ public class ChatController {
      * @return 响应流chatId
      */
     private Flux<String> multiModalChat(String prompt, String chatId, List<MultipartFile> files) {
+        // 在请求模型前先计算并保存“用户轮次附件”，避免流式响应中断导致轮次错位。
+        int userTurn = resolveNextUserTurn(chatId);
+        chatImageRepository.save(chatId, userTurn, files);
+
         // 1.解析多媒体
         List<Media> medias = files.stream()
                 .map(file -> new Media(
@@ -80,6 +105,34 @@ public class ChatController {
                 .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
                 .stream()
                 .content();
+    }
+
+    /**
+     * 读取聊天图片附件，供前端历史消息直接渲染。
+     */
+    @GetMapping("/chat/attachments/{chatId}/{storedName}")
+    public ResponseEntity<Resource> getChatAttachment(@PathVariable("chatId") String chatId,
+                                                      @PathVariable("storedName") String storedName) {
+        // 先走元数据校验，再读取文件，避免直接拼路径读取导致越权访问。
+        Optional<ChatImageMeta> imageMetaOpt = chatImageRepository.findMeta(chatId, storedName);
+        if (imageMetaOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Resource resource = chatImageRepository.getFile(chatId, storedName);
+        if (resource == null || !resource.exists() || !resource.isReadable()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ChatImageMeta imageMeta = imageMetaOpt.get();
+        String encodedFileName = encode(
+                Objects.requireNonNullElse(imageMeta.getOriginalName(), "image"),
+                StandardCharsets.UTF_8
+        ).replace("+", "%20");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + encodedFileName + "\"")
+                .contentType(resolveContentType(imageMeta.getContentType()))
+                .body(resource);
     }
 
     //同一个会话ID的聊天内容连续存储的关键：
@@ -104,6 +157,31 @@ public class ChatController {
                 .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)) // 传递chatId给Advisor的方式是通过AdvisorContext，也就是以key-value形式存入上下文
                 .stream()
                 .content();
+    }
+
+    /**
+     * 统计当前会话已存在的用户消息条数，计算“下一轮用户发言序号”。
+     */
+    private int resolveNextUserTurn(String chatId) {
+        List<Message> history = chatMemory.get(chatId, Integer.MAX_VALUE);
+        if (history == null || history.isEmpty()) {
+            return 1;
+        }
+        long userCount = history.stream()
+                .filter(message -> MessageType.USER == message.getMessageType())
+                .count();
+        return (int) userCount + 1;
+    }
+
+    private MediaType resolveContentType(String contentType) {
+        if (!StringUtils.hasText(contentType)) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (Exception ex) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
 

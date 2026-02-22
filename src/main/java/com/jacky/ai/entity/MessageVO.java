@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.ai.chat.messages.Message;
 
+import java.util.List;
 /**
  * @author: Jacky.Z
  * @date: 2025/6/21 10:23
@@ -15,6 +16,7 @@ public class MessageVO {
 
     private String role;
     private String content;
+    private List<MessageFileVO> files;
 
     public MessageVO(Message message) {
         this.role = switch (message.getMessageType()) {

@@ -66,3 +66,7 @@ spring:
       path-patterns: /ai/chat,/ai/game,/ai/service,/ai/pdf/chat
       # 超限提示文案
       error-message: 模型调用次数已达上限，请稍后再试。
+
+app:
+  # 前端访问后端接口的统一前缀，用于拼接聊天图片附件 URL。
+  api-prefix: /api

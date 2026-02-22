@@ -63,13 +63,23 @@ public class LocalPdfFileRepository implements FileRepository {
             try {
                 chatFiles.load(new BufferedReader(new InputStreamReader(pdfResource.getInputStream(), StandardCharsets.UTF_8)));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                log.warn("Failed to load chat-pdf.properties, continue with empty mapping.", e);
             }
         }
         FileSystemResource vectorResource = new FileSystemResource("chat-pdf.json");
         if (vectorResource.exists()) {
-            SimpleVectorStore simpleVectorStore = (SimpleVectorStore) vectorStore;
-            simpleVectorStore.load(vectorResource);
+            try {
+                // 0 字节文件会触发 Jackson EOF 异常，这里直接跳过加载。
+                if (vectorResource.contentLength() <= 0) {
+                    log.warn("chat-pdf.json is empty, skip vector store loading.");
+                    return;
+                }
+                SimpleVectorStore simpleVectorStore = (SimpleVectorStore) vectorStore;
+                simpleVectorStore.load(vectorResource);
+            } catch (Exception e) {
+                // 历史向量索引损坏不应阻断服务启动，允许后续上传 PDF 后重新建立索引。
+                log.warn("Failed to load chat-pdf.json, continue with empty vector store.", e);
+            }
         }
     }
 
