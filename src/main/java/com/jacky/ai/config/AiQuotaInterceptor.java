@@ -197,4 +197,17 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
         }
         return "ip:" + request.getRemoteAddr();
     }
+
+    /**
+     * 手动清空配额计数（用于运维释放内存）。
+     *
+     * @return 清空前的用户计数
+     */
+    public int clearAllCounters() {
+        int userCount = requestCounter.size();
+        requestCounter.clear();
+        lastAccessTime.clear();
+        totalCheckCounter.set(0);
+        return userCount;
+    }
 }

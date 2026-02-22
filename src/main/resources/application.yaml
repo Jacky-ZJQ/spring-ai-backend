@@ -70,3 +70,14 @@ spring:
 app:
   # 前端访问后端接口的统一前缀，用于拼接聊天图片附件 URL。
   api-prefix: /api
+  maintenance:
+    # 是否开启定时清理任务
+    cleanup-enabled: true
+    # 定时任务 Cron（默认每天 04:00）
+    cleanup-cron: "0 0 4 * * *"
+    # PDF 保留时长（小时）
+    pdf-retention-hours: 168
+    # 聊天图片保留时长（小时）
+    image-retention-hours: 168
+    # 手动释放内存时会清理的会话类型
+    chat-types: chat,service,pdf

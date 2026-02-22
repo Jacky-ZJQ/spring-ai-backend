@@ -26,4 +26,13 @@ public interface ChatHistoryRepository {
      */
     List<String> getChatIds(String type);
 
+    /**
+     * 清空所有会话历史。
+     *
+     * @return 被清理的会话数量
+     */
+    default int clearAll() {
+        return 0;
+    }
+
 }

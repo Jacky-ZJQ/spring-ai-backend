@@ -17,16 +17,19 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 本地文件系统实现，保存聊天上传图片，支持刷新后按历史轮次恢复。
@@ -215,5 +218,143 @@ public class LocalChatImageRepository implements ChatImageRepository {
     private boolean isSafeStoredName(String storedName) {
         // 仅允许仓储生成的纯文件名，阻止 "../" 之类的路径穿越。
         return !storedName.contains("..") && !storedName.contains("/") && !storedName.contains("\\");
+    }
+
+    /**
+     * 清理超期聊天图片（按文件最后修改时间）并同步更新元数据。
+     *
+     * @param maxAgeMillis 允许保留的最大文件年龄（毫秒）
+     * @return 删除文件数量
+     */
+    public synchronized int cleanupExpired(long maxAgeMillis) {
+        if (maxAgeMillis <= 0) {
+            return 0;
+        }
+
+        long now = System.currentTimeMillis();
+        int deletedFiles = 0;
+        boolean metaChanged = false;
+        Set<Path> referencedPaths = new HashSet<>();
+
+        for (String chatId : new ArrayList<>(chatImageStore.keySet())) {
+            Map<Integer, List<ChatImageMeta>> turnMap = chatImageStore.get(chatId);
+            if (turnMap == null || turnMap.isEmpty()) {
+                chatImageStore.remove(chatId);
+                metaChanged = true;
+                continue;
+            }
+
+            for (Integer userTurn : new ArrayList<>(turnMap.keySet())) {
+                List<ChatImageMeta> metas = turnMap.get(userTurn);
+                if (metas == null || metas.isEmpty()) {
+                    turnMap.remove(userTurn);
+                    metaChanged = true;
+                    continue;
+                }
+
+                List<ChatImageMeta> kept = new ArrayList<>(metas.size());
+                for (ChatImageMeta meta : metas) {
+                    Path filePath = resolveImagePath(chatId, meta.getStoredName());
+                    if (filePath == null || !Files.exists(filePath)) {
+                        metaChanged = true;
+                        continue;
+                    }
+                    if (isExpired(filePath, now, maxAgeMillis)) {
+                        if (deleteSilently(filePath)) {
+                            deletedFiles++;
+                        }
+                        metaChanged = true;
+                        continue;
+                    }
+                    kept.add(meta);
+                    referencedPaths.add(filePath.toAbsolutePath().normalize());
+                }
+
+                if (kept.isEmpty()) {
+                    turnMap.remove(userTurn);
+                    metaChanged = true;
+                } else if (kept.size() != metas.size()) {
+                    turnMap.put(userTurn, new CopyOnWriteArrayList<>(kept));
+                    metaChanged = true;
+                }
+            }
+
+            if (turnMap.isEmpty()) {
+                chatImageStore.remove(chatId);
+                metaChanged = true;
+            }
+        }
+
+        // 清理磁盘上的孤儿图片文件（不在元数据中且已过期）
+        if (Files.exists(STORAGE_DIR)) {
+            try (Stream<Path> files = Files.walk(STORAGE_DIR)) {
+                for (Path filePath : files.filter(Files::isRegularFile).toList()) {
+                    Path absolutePath = filePath.toAbsolutePath().normalize();
+                    if (META_FILE.equals(filePath)) {
+                        continue;
+                    }
+                    if (referencedPaths.contains(absolutePath)) {
+                        continue;
+                    }
+                    if (!isExpired(absolutePath, now, maxAgeMillis)) {
+                        continue;
+                    }
+                    if (deleteSilently(absolutePath)) {
+                        deletedFiles++;
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("Failed to scan chat image directory for cleanup.", e);
+            }
+
+            // 删除空目录，保持目录结构整洁
+            try (Stream<Path> dirs = Files.walk(STORAGE_DIR)) {
+                dirs.sorted(Comparator.reverseOrder())
+                        .filter(path -> !path.equals(STORAGE_DIR))
+                        .filter(Files::isDirectory)
+                        .forEach(path -> {
+                            try (Stream<Path> children = Files.list(path)) {
+                                if (children.findAny().isEmpty()) {
+                                    Files.deleteIfExists(path);
+                                }
+                            } catch (IOException e) {
+                                log.warn("Failed to delete empty chat image dir: {}", path, e);
+                            }
+                        });
+            } catch (IOException e) {
+                log.warn("Failed to cleanup empty chat image directories.", e);
+            }
+        }
+
+        if (metaChanged) {
+            persistMeta();
+        }
+        return deletedFiles;
+    }
+
+    private Path resolveImagePath(String chatId, String storedName) {
+        if (!StringUtils.hasText(chatId) || !isSafeStoredName(storedName)) {
+            return null;
+        }
+        return STORAGE_DIR.resolve(sanitizePathSegment(chatId)).resolve(storedName).toAbsolutePath().normalize();
+    }
+
+    private boolean isExpired(Path filePath, long now, long maxAgeMillis) {
+        try {
+            long lastModified = Files.getLastModifiedTime(filePath).toMillis();
+            return now - lastModified > maxAgeMillis;
+        } catch (IOException e) {
+            log.warn("Failed to get file lastModified, treat as expired: {}", filePath, e);
+            return true;
+        }
+    }
+
+    private boolean deleteSilently(Path filePath) {
+        try {
+            return Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            log.warn("Failed to delete chat image file: {}", filePath, e);
+            return false;
+        }
     }
 }

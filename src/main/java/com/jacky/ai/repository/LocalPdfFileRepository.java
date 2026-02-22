@@ -16,8 +16,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -91,6 +96,93 @@ public class LocalPdfFileRepository implements FileRepository {
             simpleVectorStore.save(new File("chat-pdf.json"));
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 清理超期 PDF 文件（按文件最后修改时间判断）并同步清理映射关系。
+     *
+     * @param maxAgeMillis 允许保留的最大文件年龄（毫秒）
+     * @return 删除文件数量
+     */
+    public synchronized int cleanupExpired(long maxAgeMillis) {
+        if (maxAgeMillis <= 0) {
+            return 0;
+        }
+        long now = System.currentTimeMillis();
+        int deletedFiles = 0;
+        boolean mappingChanged = false;
+
+        // 1) 清理“映射存在但文件缺失/过期”的记录
+        Set<Path> mappedPaths = new HashSet<>();
+        Iterator<Map.Entry<Object, Object>> iterator = chatFiles.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Object, Object> entry = iterator.next();
+            String pathValue = String.valueOf(entry.getValue());
+            Path filePath = Path.of(pathValue).toAbsolutePath().normalize();
+            if (!Files.exists(filePath)) {
+                iterator.remove();
+                mappingChanged = true;
+                continue;
+            }
+            if (isExpired(filePath, now, maxAgeMillis)) {
+                try {
+                    Files.deleteIfExists(filePath);
+                    deletedFiles++;
+                } catch (IOException e) {
+                    log.warn("Failed to delete expired pdf file: {}", filePath, e);
+                }
+                iterator.remove();
+                mappingChanged = true;
+                continue;
+            }
+            mappedPaths.add(filePath);
+        }
+
+        // 2) 清理“没有映射”的孤儿文件，避免磁盘长期累积
+        if (Files.exists(STORAGE_DIR)) {
+            try (Stream<Path> files = Files.walk(STORAGE_DIR)) {
+                for (Path filePath : files.filter(Files::isRegularFile).toList()) {
+                    Path absolutePath = filePath.toAbsolutePath().normalize();
+                    if (mappedPaths.contains(absolutePath)) {
+                        continue;
+                    }
+                    if (!isExpired(absolutePath, now, maxAgeMillis)) {
+                        continue;
+                    }
+                    try {
+                        Files.deleteIfExists(absolutePath);
+                        deletedFiles++;
+                    } catch (IOException e) {
+                        log.warn("Failed to delete orphan pdf file: {}", absolutePath, e);
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("Failed to scan pdf storage for cleanup.", e);
+            }
+        }
+
+        if (mappingChanged) {
+            persistMappingOnly();
+        }
+        return deletedFiles;
+    }
+
+    private boolean isExpired(Path filePath, long now, long maxAgeMillis) {
+        try {
+            long lastModified = Files.getLastModifiedTime(filePath).toMillis();
+            return now - lastModified > maxAgeMillis;
+        } catch (IOException e) {
+            log.warn("Failed to get file lastModified, treat as expired: {}", filePath, e);
+            return true;
+        }
+    }
+
+    private void persistMappingOnly() {
+        try {
+            chatFiles.store(new FileWriter("chat-pdf.properties"), LocalDateTime.now().toString());
+        } catch (IOException e) {
+            log.warn("Failed to persist chat-pdf.properties during cleanup.", e);
         }
     }
 
