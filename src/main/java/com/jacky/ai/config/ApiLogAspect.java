@@ -51,7 +51,7 @@ public class ApiLogAspect {
         String params = formatParams(joinPoint);
         String simpleClassName = className.substring(className.lastIndexOf('.') + 1);
 
-        log.info("[API-REQ] {} {} | {}.{} | IP: {} | Params: {}", method, url, simpleClassName, methodName, ip, params);
+        log.info("[API-请求] {} {} | {}.{} | IP: {} | Params: {}", method, url, simpleClassName, methodName, ip, params);
 
         Object result = null;
         try {
@@ -60,7 +60,7 @@ public class ApiLogAspect {
             long duration = endTime - startTime;
 
             String response = formatResponse(result);
-            log.info("[API-RES] {} {} | {}.{} | Cost: {}ms | Response: {}", method, url, simpleClassName, methodName, duration, response);
+            log.info("[API-响应] {} {} | {}.{} | Cost: {}ms | Response: {}", method, url, simpleClassName, methodName, duration, response);
             return result;
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
