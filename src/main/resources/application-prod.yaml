@@ -79,3 +79,9 @@ app:
     image-retention-hours: ${APP_MAINTENANCE_IMAGE_RETENTION_HOURS:168}
     # 手动释放内存时要清理的会话类型
     chat-types: ${APP_MAINTENANCE_CHAT_TYPES:chat,service,pdf}
+
+  mcp-gateway:
+    stdio-enabled: ${APP_MCP_GATEWAY_STDIO_ENABLED:false}
+    stdio-command-whitelist: ${APP_MCP_GATEWAY_STDIO_COMMAND_WHITELIST:}
+    connect-timeout-ms: ${APP_MCP_GATEWAY_CONNECT_TIMEOUT_MS:5000}
+    request-timeout-ms: ${APP_MCP_GATEWAY_REQUEST_TIMEOUT_MS:10000}

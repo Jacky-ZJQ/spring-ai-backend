@@ -81,3 +81,9 @@ app:
     image-retention-hours: 168
     # 手动释放内存时会清理的会话类型
     chat-types: chat,service,pdf
+
+  mcp-gateway:
+    stdio-enabled: false
+    stdio-command-whitelist: ""
+    connect-timeout-ms: 5000
+    request-timeout-ms: 10000
