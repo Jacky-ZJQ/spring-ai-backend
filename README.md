@@ -1,4 +1,18 @@
+<div align="center">
+
 # Spring AI Demo
+
+[![JDK](https://img.shields.io/badge/JDK-17-orange.svg)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-1.0.0-blue.svg)](https://spring.io/projects/spring-ai)
+[![Vue](https://img.shields.io/badge/Vue-3.4.x-42b883.svg)](https://vuejs.org/)
+
+![](https://img.shields.io/github/v/release/microsoft/vscode)
+![](https://img.shields.io/github/license/microsoft/vscode)
+![](https://img.shields.io/github/last-commit/microsoft/vscode)
+![](https://img.shields.io/github/stars/microsoft/vscode)
+</div>
+
 
 一个基于 Spring Boot + Spring AI 的多场景 AI 示例项目，包含：
 
@@ -319,3 +333,101 @@ curl http://127.0.0.1/api/actuator/health
 ## License
 
 本项目采用 `Apache License 2.0`，详见 `LICENSE` 文件。
+## 最近更新（2026-03-02）
+
+### 1. Skills 能力（feat(skill): 添加 skills）
+
+本仓库新增了本地 Agent Skill：`ui-ux-pro-max`，目录如下：
+
+- `.agents/skills/ui-ux-pro-max/SKILL.md`
+- `.agents/skills/ui-ux-pro-max/data/*`
+- `.agents/skills/ui-ux-pro-max/scripts/*`
+
+主要用途：
+
+- 提供 UI/UX 设计规则与检索能力（样式、配色、字体、图表、可访问性等）
+- 支持多技术栈参考（React / Next.js / Vue / Svelte / Flutter / SwiftUI 等）
+- 可通过脚本进行设计系统生成与规则搜索
+
+示例命令：
+
+```bash
+python .agents/skills/ui-ux-pro-max/scripts/search.py "saas dashboard fintech" --design-system
+```
+
+> 说明：该能力主要服务于研发流程（设计与前端实现建议），不影响后端运行时 API。
+
+### 2. MCP Gateway 管理能力（feat(mcp): create mcp gateway）
+
+新增 MCP Gateway 管理 API，统一前缀：
+
+- `/ai/mcp-gateway`
+
+#### 2.1 服务端管理接口
+
+- `GET /ai/mcp-gateway/servers`：查询服务器列表
+- `POST /ai/mcp-gateway/servers`：创建服务器
+- `GET /ai/mcp-gateway/servers/{id}`：查询服务器详情
+- `PUT /ai/mcp-gateway/servers/{id}`：更新服务器
+- `DELETE /ai/mcp-gateway/servers/{id}`：删除服务器
+- `POST /ai/mcp-gateway/servers/{id}/connect`：连接服务器
+- `POST /ai/mcp-gateway/servers/{id}/disconnect`：断开服务器
+- `POST /ai/mcp-gateway/servers/{id}/ping`：连通性检测
+
+#### 2.2 工具策略接口
+
+- `POST /ai/mcp-gateway/servers/{id}/tools/sync`：同步工具列表
+- `PATCH /ai/mcp-gateway/servers/{id}/tools/{toolName}`：更新单个工具策略
+- `POST /ai/mcp-gateway/servers/{id}/tools/batch`：批量启停/策略操作
+- `POST /ai/mcp-gateway/servers/{id}/tools/{toolName}/debug`：调试执行工具
+
+#### 2.3 配置项（application.yaml / application-prod.yaml）
+
+新增配置：
+
+```yaml
+app:
+  mcp-gateway:
+    stdio-enabled: false
+    stdio-command-whitelist: ""
+    connect-timeout-ms: 5000
+    request-timeout-ms: 10000
+```
+
+生产环境可通过以下环境变量覆盖：
+
+- `APP_MCP_GATEWAY_STDIO_ENABLED`
+- `APP_MCP_GATEWAY_STDIO_COMMAND_WHITELIST`
+- `APP_MCP_GATEWAY_CONNECT_TIMEOUT_MS`
+- `APP_MCP_GATEWAY_REQUEST_TIMEOUT_MS`
+
+#### 2.4 数据库变更
+
+`deploy/mysql/init/01-schema.sql` 新增两张表：
+
+- `mcp_gateway_server`：MCP 服务连接配置（HTTP/SSE/STDIO、鉴权、连接参数等）
+- `mcp_gateway_tool_policy`：工具级策略（启用、自动执行、成本、排序、同步时间等）
+
+如果是增量升级，请执行对应 DDL 迁移，确保上述两张表存在。
+
+#### 2.5 最小调用示例
+
+创建 MCP 服务器：
+
+```bash
+curl -X POST "http://localhost:8080/ai/mcp-gateway/servers" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serverName": "demo-http-server",
+    "connectionType": "HTTP",
+    "connectionUrl": "http://127.0.0.1:3001/mcp",
+    "enabled": true
+  }'
+```
+
+连接并同步工具：
+
+```bash
+curl -X POST "http://localhost:8080/ai/mcp-gateway/servers/1/connect"
+curl -X POST "http://localhost:8080/ai/mcp-gateway/servers/1/tools/sync"
+```
