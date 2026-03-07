@@ -159,3 +159,135 @@ CREATE TABLE IF NOT EXISTS mcp_gateway_tool_policy (
                                                             FOREIGN KEY (server_id) REFERENCES mcp_gateway_server(id)
                                                                 ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 9. AI 知识库内容分类表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS knowledge_category (
+                                                  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                  name VARCHAR(64) NOT NULL COMMENT '分类名称',
+                                                  code VARCHAR(64) NOT NULL COMMENT '分类编码',
+                                                  sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+                                                  enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+                                                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                                  UNIQUE KEY uk_knowledge_category_name (name),
+                                                  UNIQUE KEY uk_knowledge_category_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 10. AI 知识库标签表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS knowledge_tag (
+                                             id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                             name VARCHAR(64) NOT NULL COMMENT '标签名称',
+                                             sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+                                             enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+                                             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                             UNIQUE KEY uk_knowledge_tag_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 11. AI 知识库文章表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS knowledge_article (
+                                                 id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                 title VARCHAR(200) NOT NULL COMMENT '标题',
+                                                 summary VARCHAR(500) NULL COMMENT '摘要',
+                                                 type VARCHAR(32) NOT NULL COMMENT '类型: PROMPT/WORKFLOW/CASE/NOTE',
+                                                 category_id BIGINT NULL COMMENT '分类ID',
+                                                 content_md MEDIUMTEXT NOT NULL COMMENT 'Markdown 内容',
+                                                 extra_json MEDIUMTEXT NULL COMMENT '结构化扩展字段',
+                                                 cover_url VARCHAR(512) NULL COMMENT '封面地址',
+                                                 visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC' COMMENT '可见性: PUBLIC/PRIVATE',
+                                                 status VARCHAR(16) NOT NULL DEFAULT 'DRAFT' COMMENT '状态: DRAFT/PUBLISHED',
+                                                 view_count INT NOT NULL DEFAULT 0 COMMENT '浏览数',
+                                                 like_count INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+                                                 favorite_count INT NOT NULL DEFAULT 0 COMMENT '收藏数',
+                                                 created_by VARCHAR(64) NOT NULL DEFAULT 'system' COMMENT '创建人',
+                                                 updated_by VARCHAR(64) NOT NULL DEFAULT 'system' COMMENT '更新人',
+                                                 published_at TIMESTAMP NULL DEFAULT NULL COMMENT '发布时间',
+                                                 deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+                                                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                                 KEY idx_knowledge_article_type_status (type, status),
+                                                 KEY idx_knowledge_article_category (category_id),
+                                                 KEY idx_knowledge_article_published (published_at),
+                                                 CONSTRAINT fk_knowledge_article_category
+                                                     FOREIGN KEY (category_id) REFERENCES knowledge_category(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 12. AI 知识库文章标签关系表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS knowledge_article_tag (
+                                                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                     article_id BIGINT NOT NULL COMMENT '文章ID',
+                                                     tag_id BIGINT NOT NULL COMMENT '标签ID',
+                                                     UNIQUE KEY uk_knowledge_article_tag (article_id, tag_id),
+                                                     KEY idx_knowledge_article_tag_tag (tag_id),
+                                                     CONSTRAINT fk_knowledge_article_tag_article
+                                                         FOREIGN KEY (article_id) REFERENCES knowledge_article(id)
+                                                             ON DELETE CASCADE,
+                                                     CONSTRAINT fk_knowledge_article_tag_tag
+                                                         FOREIGN KEY (tag_id) REFERENCES knowledge_tag(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 13. AI 知识库分享链接表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS knowledge_share_link (
+                                                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                                    article_id BIGINT NOT NULL COMMENT '文章ID',
+                                                    share_token VARCHAR(64) NOT NULL COMMENT '分享令牌',
+                                                    expire_at TIMESTAMP NULL DEFAULT NULL COMMENT '过期时间',
+                                                    status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE/DISABLED',
+                                                    view_count INT NOT NULL DEFAULT 0 COMMENT '访问次数',
+                                                    created_by VARCHAR(64) NOT NULL DEFAULT 'system' COMMENT '创建人',
+                                                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                    UNIQUE KEY uk_knowledge_share_link_token (share_token),
+                                                    KEY idx_knowledge_share_link_article_status (article_id, status),
+                                                    CONSTRAINT fk_knowledge_share_link_article
+                                                        FOREIGN KEY (article_id) REFERENCES knowledge_article(id)
+                                                            ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- 14. 知识库基础分类与标签
+-- ----------------------------
+INSERT INTO knowledge_category (name, code, sort_order)
+SELECT '提示词', 'prompt', 10
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_category WHERE code = 'prompt');
+
+INSERT INTO knowledge_category (name, code, sort_order)
+SELECT '工作流', 'workflow', 20
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_category WHERE code = 'workflow');
+
+INSERT INTO knowledge_category (name, code, sort_order)
+SELECT '实战案例', 'case', 30
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_category WHERE code = 'case');
+
+INSERT INTO knowledge_category (name, code, sort_order)
+SELECT '经验笔记', 'note', 40
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_category WHERE code = 'note');
+
+INSERT INTO knowledge_tag (name, sort_order)
+SELECT 'Spring AI', 10
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_tag WHERE name = 'Spring AI');
+
+INSERT INTO knowledge_tag (name, sort_order)
+SELECT 'RAG', 20
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_tag WHERE name = 'RAG');
+
+INSERT INTO knowledge_tag (name, sort_order)
+SELECT '提示工程', 30
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_tag WHERE name = '提示工程');
+
+INSERT INTO knowledge_tag (name, sort_order)
+SELECT '工作流', 40
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_tag WHERE name = '工作流');
+
+INSERT INTO knowledge_tag (name, sort_order)
+SELECT 'MCP', 50
+WHERE NOT EXISTS (SELECT 1 FROM knowledge_tag WHERE name = 'MCP');
