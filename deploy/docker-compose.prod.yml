@@ -32,8 +32,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ../Dockerfile
     image: spring-ai-backend:prod
     container_name: spring-ai-backend
     restart: unless-stopped
@@ -81,7 +81,7 @@ services:
   portal:
     build:
       context: ${PORTAL_BUILD_CONTEXT:-../spring-ai-portal}
-      dockerfile: Dockerfile
+      dockerfile: ../Dockerfile
       args:
         VITE_API_BASE_URL: /api
     image: spring-ai-portal:prod

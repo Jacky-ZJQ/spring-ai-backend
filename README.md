@@ -284,7 +284,16 @@ curl http://127.0.0.1/api/actuator/health
 
 ```bash
 /opt/spring-ai/deploy.sh pull all
+/opt/spring-ai/deploy.sh pull backend
+/opt/spring-ai/deploy.sh pull portal
 ```
+
+说明：
+
+- 不带参数时默认等价于 `/opt/spring-ai/deploy.sh nopull all`
+- `pull backend` 只更新后端仓库并发布 `backend`
+- `pull portal` 只更新前端仓库并发布 `portal`
+- `pull all` 才会同时更新两个仓库
 
 ### 3. 发布后异常，快速回滚
 
@@ -304,6 +313,8 @@ git log --oneline -n 5
 ### 4. GitHub 网络异常时临时发布（不拉代码）
 
 ```bash
+/opt/spring-ai/deploy.sh nopull backend
+/opt/spring-ai/deploy.sh nopull portal
 /opt/spring-ai/deploy.sh nopull all
 ```
 

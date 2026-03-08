@@ -90,49 +90,22 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=100 p
 
 本节放在首次部署后立即执行，后续所有发布都使用脚本。
 
-### 5.1 创建 `deploy.sh`
+### 5.1 安装 `deploy.sh`
 
 ```bash
-cat > /opt/spring-ai/deploy.sh <<'EOF'
-#!/usr/bin/env bash
-set -e
-
-BASE="/opt/spring-ai"
-BACKEND_DIR="$BASE/spring-ai-backend"
-PORTAL_DIR="$BASE/spring-ai-portal"
-BRANCH="master-deploy"
-
-MODE="${1:-nopull}"   # pull | nopull
-TARGET="${2:-all}"    # all | backend | portal
-
-cd "$BACKEND_DIR"
-cp -n .env.prod .env.prod.bak || true
-
-if [ "$MODE" = "pull" ]; then
-  cd "$BACKEND_DIR"
-  git fetch origin
-  git checkout "$BRANCH"
-  git pull --ff-only origin "$BRANCH"
-
-  cd "$PORTAL_DIR"
-  git fetch origin
-  git checkout "$BRANCH"
-  git pull --ff-only origin "$BRANCH"
-fi
-
-cd "$BACKEND_DIR"
-if [ "$TARGET" = "backend" ]; then
-  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend
-elif [ "$TARGET" = "portal" ]; then
-  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build portal
-else
-  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend portal
-fi
-
-docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-EOF
-chmod +x /opt/spring-ai/deploy.sh
+install -m 755 /opt/spring-ai/spring-ai-backend/deploy/deploy.sh /opt/spring-ai/deploy.sh
 ```
+
+说明：
+
+- 仓库内置脚本路径：`/opt/spring-ai/spring-ai-backend/deploy/deploy.sh`
+- 安装到服务器快捷入口后，统一通过 `/opt/spring-ai/deploy.sh` 调用
+- 新脚本会按 `TARGET` 精确拉仓库：
+  - `pull backend` 只更新 `spring-ai-backend`
+  - `pull portal` 只更新 `spring-ai-portal`
+  - `pull all` 才会同时更新两个仓库
+- 不带参数时默认等价于 `/opt/spring-ai/deploy.sh nopull all`
+- 发布完成后会自动执行一次 `curl http://127.0.0.1/api/actuator/health || true`
 
 ### 5.2 创建 `rollback.sh`
 
@@ -167,14 +140,16 @@ chmod +x /opt/spring-ai/rollback.sh
 ### 5.3 发布与回滚用法（整合了原 6.6/6.7/6.8）
 
 ```bash
-# 标准发布：拉最新代码 + 发布前后端
+# 标准发布：分别拉取 backend + portal 仓库，再发布前后端
 /opt/spring-ai/deploy.sh pull all
 
-# Bugfix 快速发布：仅后端或仅前端
+# Bugfix 快速发布：只拉对应仓库，只发布对应服务
 /opt/spring-ai/deploy.sh pull backend
 /opt/spring-ai/deploy.sh pull portal
 
 # GitHub 网络异常时：不拉代码，仅按当前目录重建发布
+/opt/spring-ai/deploy.sh nopull backend
+/opt/spring-ai/deploy.sh nopull portal
 /opt/spring-ai/deploy.sh nopull all
 
 # 查询可回滚提交
@@ -294,6 +269,26 @@ cp .env.prod .env
 1. 检查云防火墙/安全组是否放行 `80`
 2. `docker compose ... ps` 看 `portal` 是否 Up
 3. 查看 `portal` 与 `backend` 日志
+
+### 8.4 `git pull` 或 `docker build` 超时
+
+常见现象：
+
+- `fatal: unable to access 'https://github.com/...': Operation timed out`
+- `docker build` 卡在拉 `node:20-alpine`、`nginx:alpine`、`maven:*` 等基础镜像
+
+原因：云服务器访问 `GitHub` 或 `Docker Hub` 链路不稳定。
+
+处理：
+
+1. 如果代码已经在服务器目录里，直接执行 `nopull`：
+
+```bash
+/opt/spring-ai/deploy.sh nopull backend
+/opt/spring-ai/deploy.sh nopull portal
+```
+
+2. 如果连基础镜像也拉不下来，改用“本地构建 + 上传镜像”或第 6 节的“本地打包源码再上传”方案。
 
 ## 9. 安全建议
 
