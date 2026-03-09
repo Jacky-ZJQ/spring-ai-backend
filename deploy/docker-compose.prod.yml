@@ -33,7 +33,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: /Dockerfile
+      dockerfile: Dockerfile
     image: spring-ai-backend:prod
     container_name: spring-ai-backend
     restart: unless-stopped
@@ -70,8 +70,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - backend_data:/data
-    expose:
-      - "8080"
+    ports:
+      - "8081:8080"
     mem_limit: 1536m
     cpus: "0.70"
     networks:
@@ -79,7 +79,7 @@ services:
 
   portal:
     build:
-      context: ${PORTAL_BUILD_CONTEXT:-../../spring-ai-portal}
+      context: ${PORTAL_BUILD_CONTEXT:-/opt/spring-ai/spring-ai-portal}
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api

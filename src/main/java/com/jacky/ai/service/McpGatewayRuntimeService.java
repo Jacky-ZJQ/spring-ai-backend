@@ -31,6 +31,10 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+/**
+ * MCP Gateway 运行时服务。
+ * 负责连接管理、工具发现与调用、JSON-RPC 转发，以及不同连接类型的连通性检测。
+ */
 public class McpGatewayRuntimeService {
 
     private static final String STATUS_CONNECTED = "CONNECTED";
@@ -39,28 +43,55 @@ public class McpGatewayRuntimeService {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * 运行时连接快照（仅内存态），用于管理端展示连接状态与更新时间。
+     */
     private final Map<Long, RuntimeSnapshot> runtimeSnapshots = new ConcurrentHashMap<>();
 
+    /**
+     * 本地服务端口：用于把相对路径（如 /mcp）解析为可访问 URL。
+     */
     @Value("${server.port:8080}")
     private int serverPort;
 
+    /**
+     * 是否允许 STDIO 模式。
+     */
     @Value("${app.mcp-gateway.stdio-enabled:false}")
     private boolean stdioEnabled;
 
+    /**
+     * STDIO 命令白名单（逗号分隔前缀）。
+     */
     @Value("${app.mcp-gateway.stdio-command-whitelist:}")
     private String stdioCommandWhitelist;
 
+    /**
+     * 连接超时毫秒。
+     */
     @Value("${app.mcp-gateway.connect-timeout-ms:5000}")
     private int connectTimeoutMs;
 
+    /**
+     * 请求超时毫秒。
+     */
     @Value("${app.mcp-gateway.request-timeout-ms:10000}")
     private int requestTimeoutMs;
 
+    /**
+     * 获取服务器运行时快照；若不存在则返回“未连接”默认值。
+     */
     public RuntimeSnapshot getSnapshot(Long serverId) {
         return runtimeSnapshots.getOrDefault(serverId,
                 new RuntimeSnapshot(false, STATUS_DISCONNECTED, "未连接", LocalDateTime.now()));
     }
 
+    /**
+     * 建立连接：
+     * HTTP -> initialize
+     * SSE  -> 连通性检测
+     * STDIO-> 命令连通性检测
+     */
     public RuntimeSnapshot connect(McpGatewayServer server) {
         try {
             String type = normalizeType(server.getConnectionType());
@@ -83,12 +114,20 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * 断开连接（仅更新本地快照状态，不维护长连接句柄）。
+     */
     public RuntimeSnapshot disconnect(Long serverId) {
         RuntimeSnapshot snapshot = new RuntimeSnapshot(false, STATUS_DISCONNECTED, "已断开连接", LocalDateTime.now());
         runtimeSnapshots.put(serverId, snapshot);
         return snapshot;
     }
 
+    /**
+     * Ping 检测：
+     * HTTP 使用 JSON-RPC ping；
+     * SSE/STDIO 走各自连通性探测。
+     */
     public RuntimeSnapshot ping(McpGatewayServer server) {
         try {
             String type = normalizeType(server.getConnectionType());
@@ -109,6 +148,9 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * 获取远端工具列表（仅 HTTP）。
+     */
     public List<ToolDescriptor> listTools(McpGatewayServer server) {
         assertHttpConnection(server);
         Map<String, Object> rpc = invokeJsonRpc(server, "tools/list", Map.of());
@@ -127,6 +169,9 @@ public class McpGatewayRuntimeService {
         return descriptors;
     }
 
+    /**
+     * 调用指定远端工具（仅 HTTP）。
+     */
     public RpcToolCallResult callTool(McpGatewayServer server, String toolName, Map<String, Object> arguments) {
         assertHttpConnection(server);
         Map<String, Object> params = new LinkedHashMap<>();
@@ -147,6 +192,9 @@ public class McpGatewayRuntimeService {
         return new RpcToolCallResult(isError, result, rawJson);
     }
 
+    /**
+     * MCP initialize 握手。
+     */
     private void initialize(McpGatewayServer server) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("protocolVersion", "2025-06-18");
@@ -155,6 +203,12 @@ public class McpGatewayRuntimeService {
         invokeJsonRpc(server, "initialize", params);
     }
 
+    /**
+     * 通用 JSON-RPC 调用器：
+     * 1) 解析目标 URI
+     * 2) 组装 JSON-RPC payload
+     * 3) 发送 HTTP 请求并解析 result/error
+     */
     private Map<String, Object> invokeJsonRpc(McpGatewayServer server, String method, Map<String, Object> params) {
         try {
             URI uri = resolveTargetUri(server.getConnectionUrl());
@@ -194,6 +248,9 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * SSE 连通性检测：仅验证 endpoint 可访问性（不建立持续订阅）。
+     */
     private void testSseConnectivity(McpGatewayServer server) {
         String endpoint = resolveSseEndpoint(server);
         try {
@@ -215,6 +272,10 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * STDIO 连通性检测：
+     * 校验开关、白名单、命令参数后启动进程进行短时探活。
+     */
     private void testStdioConnectivity(McpGatewayServer server) {
         if (!stdioEnabled) {
             throw new IllegalStateException("STDIO 已关闭，请设置 app.mcp-gateway.stdio-enabled=true");
@@ -263,6 +324,9 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * 当前实现仅支持 HTTP 的 tools/list 与 tools/call。
+     */
     private void assertHttpConnection(McpGatewayServer server) {
         if (!"HTTP".equals(normalizeType(server.getConnectionType()))) {
             throw new IllegalStateException("仅 HTTP 连接支持 tools/list 与 tools/call");
@@ -273,6 +337,9 @@ public class McpGatewayRuntimeService {
         return StringUtils.hasText(type) ? type.trim().toUpperCase() : "";
     }
 
+    /**
+     * 将 JSON 字符串解析为 String->String map，用于 HTTP headers 或 STDIO env。
+     */
     private Map<String, String> parseHeaders(String json) {
         if (!StringUtils.hasText(json)) {
             return Map.of();
@@ -292,6 +359,9 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * 解析 STDIO args JSON（字符串数组）。
+     */
     private List<String> parseStringListJson(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
@@ -311,6 +381,9 @@ public class McpGatewayRuntimeService {
         }
     }
 
+    /**
+     * 解析逗号分隔白名单前缀。
+     */
     private List<String> parseWhitelist() {
         if (!StringUtils.hasText(stdioCommandWhitelist)) {
             return List.of();
@@ -324,6 +397,13 @@ public class McpGatewayRuntimeService {
         return prefixes;
     }
 
+    /**
+     * 统一 URI 解析规则：
+     * - http(s):// 开头：原样使用
+     * - /api/*：映射到当前服务 /{去掉api前缀}
+     * - /*：映射到当前服务
+     * - 其他：按 host[:port][/path] 补全为 http://
+     */
     private URI resolveTargetUri(String rawUrl) {
         if (!StringUtils.hasText(rawUrl)) {
             throw new IllegalArgumentException("连接地址不能为空");
@@ -341,6 +421,12 @@ public class McpGatewayRuntimeService {
         return URI.create("http://" + url);
     }
 
+    /**
+     * 解析 SSE endpoint：
+     * - 未配置：回退 connectionUrl
+     * - 绝对地址：直接使用
+     * - 相对地址：基于 connectionUrl 拼接
+     */
     private String resolveSseEndpoint(McpGatewayServer server) {
         String sseEndpoint = server.getSseEndpoint();
         if (!StringUtils.hasText(sseEndpoint)) {
@@ -365,6 +451,9 @@ public class McpGatewayRuntimeService {
         return base.getScheme() + "://" + base.getHost() + (base.getPort() > 0 ? ":" + base.getPort() : "") + basePath + trimmed;
     }
 
+    /**
+     * 安全转换 Object -> Map<String, Object>。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> asMap(Object value) {
         if (value instanceof Map<?, ?> raw) {
@@ -377,6 +466,9 @@ public class McpGatewayRuntimeService {
         return Map.of();
     }
 
+    /**
+     * 安全转换 Object -> List<Map<String, Object>>。
+     */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> asObjectList(Object value) {
         if (!(value instanceof List<?> rawList)) {
@@ -395,6 +487,9 @@ public class McpGatewayRuntimeService {
         return list;
     }
 
+    /**
+     * 运行时状态快照。
+     */
     @Data
     @AllArgsConstructor
     public static class RuntimeSnapshot {
@@ -404,6 +499,9 @@ public class McpGatewayRuntimeService {
         private LocalDateTime updatedAt;
     }
 
+    /**
+     * MCP 工具描述。
+     */
     @Data
     @AllArgsConstructor
     public static class ToolDescriptor {
@@ -412,6 +510,9 @@ public class McpGatewayRuntimeService {
         private Map<String, Object> inputSchema;
     }
 
+    /**
+     * MCP 工具调用结果包装。
+     */
     @Data
     @AllArgsConstructor
     public static class RpcToolCallResult {

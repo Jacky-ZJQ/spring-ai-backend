@@ -18,8 +18,11 @@ BASE_DIR="$(cd "$BACKEND_DIR/.." && pwd)"
 PORTAL_DIR_DEFAULT="$BASE_DIR/spring-ai-portal"
 
 BRANCH="${BRANCH:-master-deploy}"
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-ENV_FILE="${ENV_FILE:-.env.prod}"
+COMPOSE_FILE_REL="${COMPOSE_FILE:-deploy/docker-compose.prod.yml}"
+ENV_FILE_REL="${ENV_FILE:-.env.prod}"
+
+COMPOSE_FILE_PATH="$BACKEND_DIR/$COMPOSE_FILE_REL"
+ENV_FILE_PATH="$BACKEND_DIR/$ENV_FILE_REL"
 
 MODE="${1:-nopull}"
 TARGET="${2:-all}"
@@ -71,11 +74,15 @@ require_file() {
 get_env_value() {
   local key="$1"
   local file="$2"
-  awk -F= -v k="$key" '$1==k {print substr($0, index($0, "=")+1)}' "$file" | tail -n1
+  awk -F= -v k="$key" '
+    $0 !~ /^[[:space:]]*#/ && $1 == k {
+      print substr($0, index($0, "=")+1)
+    }
+  ' "$file" | tail -n1
 }
 
 compose() {
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  docker compose --env-file "$ENV_FILE_PATH" -f "$COMPOSE_FILE_PATH" "$@"
 }
 
 check_prerequisites() {
@@ -85,15 +92,15 @@ check_prerequisites() {
   require_cmd ss
 
   require_dir "$BACKEND_DIR" "backend 目录"
-  require_file "$BACKEND_DIR/$COMPOSE_FILE" "Compose 文件"
-  require_file "$BACKEND_DIR/$ENV_FILE" "环境变量文件"
+  require_file "$COMPOSE_FILE_PATH" "Compose 文件"
+  require_file "$ENV_FILE_PATH" "环境变量文件"
 }
 
 load_config() {
-  PORTAL_PORT="$(get_env_value PORTAL_PORT "$BACKEND_DIR/$ENV_FILE")"
+  PORTAL_PORT="$(get_env_value PORTAL_PORT "$ENV_FILE_PATH")"
   PORTAL_PORT="${PORTAL_PORT:-8080}"
 
-  PORTAL_BUILD_CONTEXT="$(get_env_value PORTAL_BUILD_CONTEXT "$BACKEND_DIR/$ENV_FILE")"
+  PORTAL_BUILD_CONTEXT="$(get_env_value PORTAL_BUILD_CONTEXT "$ENV_FILE_PATH")"
   PORTAL_BUILD_CONTEXT="${PORTAL_BUILD_CONTEXT:-$PORTAL_DIR_DEFAULT}"
 
   if [[ "$PORTAL_BUILD_CONTEXT" != /* ]]; then
@@ -138,6 +145,19 @@ validate_runtime_config() {
   fi
 }
 
+reset_local_changes_if_needed() {
+  local repo_name="$1"
+
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    warn "$repo_name 仓库存在本地未提交修改，将自动丢弃本地改动"
+    git reset --hard HEAD
+  fi
+
+  if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+    warn "$repo_name 仓库存在未跟踪文件，保留不删除"
+  fi
+}
+
 pull_repo() {
   local repo_dir="$1"
   local repo_name="$2"
@@ -147,6 +167,7 @@ pull_repo() {
   log "更新 $repo_name 仓库: $repo_dir"
   (
     cd "$repo_dir"
+    reset_local_changes_if_needed "$repo_name"
     git fetch origin
     git checkout "$BRANCH"
     git pull --ff-only origin "$BRANCH"
@@ -154,8 +175,7 @@ pull_repo() {
 }
 
 backup_env_once() {
-  cd "$BACKEND_DIR"
-  cp -n "$ENV_FILE" "$ENV_FILE.bak" >/dev/null 2>&1 || true
+  cp -n "$ENV_FILE_PATH" "${ENV_FILE_PATH}.bak" >/dev/null 2>&1 || true
 }
 
 cleanup_portal_container() {
@@ -196,7 +216,7 @@ wait_http_ok() {
 }
 
 health_check_backend() {
-  wait_http_ok "http://127.0.0.1/api/actuator/health" "backend 健康检查" 20 || true
+  wait_http_ok "http://127.0.0.1:8081/actuator/health" "backend 健康检查" 20 || true
 }
 
 health_check_portal() {
@@ -207,6 +227,8 @@ show_summary() {
   log "部署完成"
   echo
   echo "backend 目录: $BACKEND_DIR"
+  echo "compose 文件: $COMPOSE_FILE_PATH"
+  echo "env 文件:     $ENV_FILE_PATH"
   echo "portal 目录:  ${PORTAL_BUILD_CONTEXT}"
   echo "portal 端口:  ${PORTAL_PORT}"
   echo
